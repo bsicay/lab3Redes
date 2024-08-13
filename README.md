@@ -1,13 +1,13 @@
 # Laboratorio 3 - Algoritmos de enrutamiento
 
 ## Contenido
-- [Descripción]()
-- [Temas vistos]()
-- [Objetivos]()
-- [Organización]()
-- [Compilación]()
-- [Informe]()
-- [Integrantes]()
+- [Descripción](https://github.com/bsicay/lab3Redes?tab=readme-ov-file#descripci%C3%B3n)
+- [Objetivos](https://github.com/bsicay/lab3Redes?tab=readme-ov-file#objetivos)
+- [Temas vistos](https://github.com/bsicay/lab3Redes?tab=readme-ov-file#temas-vistos)
+- [Organización](https://github.com/bsicay/lab3Redes?tab=readme-ov-file#organizaci%C3%B3n)
+- [Compilación](https://github.com/bsicay/lab3Redes?tab=readme-ov-file#compilaci%C3%B3n)
+- [Informe](https://github.com/bsicay/lab3Redes?tab=readme-ov-file#informe)
+- [Integrantes](https://github.com/bsicay/lab3Redes?tab=readme-ov-file#integrantes)
 
 ## Descripción
 Para cualquier router es trivial conocer a dónde se envian los mensajes, únicamente es necesario que se conozca el destino final y se reenvía al vecino que puede proveer la mejor ruta al destino, al final toda esta información es almacenada en las tablas de enrutamiento.
