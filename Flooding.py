@@ -2,12 +2,15 @@ import json
 import socket
 import threading
 from node import Node
+import time
+
 
 class Flooding():
     def __init__(self):
         self.nodes = []
         self.node_ports = {}
         self.actual_node = None
+        self.echo_times = {} 
 
     def add_node(self, node):
         self.nodes.append(node)
@@ -69,7 +72,7 @@ class Flooding():
         }
 
         payload = message_data
-
+        print(source_node)
         message = {
             "type": "message",
             "from": source_node.name,
@@ -84,6 +87,10 @@ class Flooding():
     def process_message(self, message, receiving_node):
         message_data = json.loads(message)
         message_type = message_data["type"]
+
+        if message_type == "echo":
+            self.handle_echo(message_data)
+            return  # No hay necesidad de propagar un echo
 
         if receiving_node.name == message_data['to']:
             if message_type == "info":
@@ -105,6 +112,8 @@ class Flooding():
                     print(f"El hop count ha expirado para el mensaje a {message_data['to']} en {neighbor.name}")
 
     def send_message(self, neighbor_name, message):
+        print(neighbor_name)
+        print(message)
         port = self.node_ports.get(neighbor_name)
         if port:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -126,6 +135,24 @@ class Flooding():
             while True:
                 conn, addr = s.accept()
                 threading.Thread(target=self.handle_connection, args=(conn, addr)).start()
+
+    def send_echo(self, neighbor_name):
+        start_time = time.time()
+        self.echo_times[neighbor_name] = start_time 
+        message_data = {"type": "echo", "timestamp": start_time}
+        message = self.create_message(self.actual_node, message_data, Node(neighbor_name), 1)
+        self.send_message(neighbor_name, message)
+
+    def handle_echo(self, message_data):
+        origin = message_data['from']
+        if origin in self.echo_times:
+            end_time = time.time()
+            start_time = self.echo_times[origin]
+            delay = end_time - start_time  # Calcular el delay
+            print(f"Echo recibido desde {origin} con un delay de {delay*1000:.2f} ms")
+            return delay
+        else:
+            print("Echo recibido sin tiempo de inicio registrado.")
 
     def start(self):
         # topology_file = input("Ingrese el nombre del archivo de topología (e.g., topo-1.txt): ")
