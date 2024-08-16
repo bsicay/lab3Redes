@@ -1,63 +1,47 @@
+# Dijkstra.py
 import heapq
-import json
 
-def readFile(archivo):
-    with open(archivo, 'r') as file:
-        contenido = file.read()
-    
-    # Reemplazar comillas simples por comillas dobles para un JSON válido
-    contenido = contenido.replace("'", '"')
-    
-    # Parsear el contenido JSON
-    data = json.loads(contenido)
-    
-    tipo = data.get('type')
-    configuracion = data.get('config')
-    
-    return tipo, configuracion
-
-def dijkstra(graph, start):
-    # Inicialización
-    dist = {node: float('inf') for node in graph}
-    dist[start] = 0
-    prev = {node: None for node in graph}
-    queue = [(0, start)]
-    
-    while queue:
-        current_dist, current_node = heapq.heappop(queue)
+class Dijkstra:
+    @staticmethod
+    def calculate_routing_table(topology, start_node):
+        distances = {}
+        previous = {}
+        queue = []
         
-        # Si la distancia actual es mayor que la registrada, se omite
-        if current_dist > dist[current_node]:
-            continue
+        for node in topology:
+            if node == start_node:
+                distances[node] = 0
+                heapq.heappush(queue, (0, node))
+            else:
+                distances[node] = float("inf")
+                heapq.heappush(queue, (float("inf"), node))
+            previous[node] = None
         
-        # Recorre los vecinos del nodo actual
-        for neighbor, weight in graph[current_node]:
-            distance = current_dist + weight
-            
-            # Si se encuentra una distancia más corta
-            if distance < dist[neighbor]:
-                dist[neighbor] = distance
-                prev[neighbor] = current_node
-                heapq.heappush(queue, (distance, neighbor))
+        while queue:
+            u = heapq.heappop(queue)[1]
+            for v, weight in topology[u].items():
+                alt = distances[u] + weight
+                if alt < distances[v]:
+                    distances[v] = alt
+                    previous[v] = u
+                    for i in range(len(queue)):
+                        if queue[i][1] == v:
+                            queue[i] = (alt, v)
+                            heapq.heapify(queue)
+        
+        routing_table = {}
+        for node, previous_node in previous.items():
+            if previous_node is not None:
+                path = Dijkstra.get_path(previous, node)
+                routing_table[node] = (path, distances[node])
+        
+        return routing_table
     
-    return dist, prev
-
-tipo, configuracion = readFile("topologia.txt")
-
-print("Tipo:", tipo)
-print("Configuración:", configuracion)
-
-# Ejemplo de uso
-# graph = {
-#     'A': [('B', 30), ('C', 8)],
-#     'B': [('A', 4), ('C', 3), ('D', 5)],
-#     'C': [('B', 5)],
-#     'D': [('C', 3)]
-# }
-
-# start_node = 'A'
-# distances, previous_nodes = dijkstra(graph, start_node)
-
-# print("Distancias desde el nodo de inicio:")
-# for node, distance in distances.items():
-#     print(f"Distancia a {node}: {distance}")
+    @staticmethod
+    def get_path(previous, destination):
+        path = [destination]
+        while destination in previous and previous[destination] is not None:
+            destination = previous[destination]
+            path.insert(0, destination)
+        
+        return path
