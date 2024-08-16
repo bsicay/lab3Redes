@@ -3,8 +3,8 @@ Universidad del Valle de Guatemala
 Algoritmos de Enrutamiento
 """
 
-# Imports 
 from Flooding import Flooding
+from DistanceVector import DistanceVectorRouting
 
 # Programa principal
 def main():
@@ -30,6 +30,8 @@ def main():
         elif (op_MM == 3):
             # Distance Vector Routing
             print("Distance Vector Routing")
+            DVR = DistanceVectorRouting()
+            DVR.start()
       
 
         elif (op_MM == 4):
