@@ -37,7 +37,7 @@ Conocer los algoritmos de enrutamiento utilizados en las implementaciones actual
 ## Compilación
 
 ## Informe
-[Informe hecho para la práctica]()
+[Informe hecho para la práctica](https://docs.google.com/document/d/1oajd_Rplzeuf2QwlmoDx9Z3dLMxj9uxG9pMMjFpUjVY/edit?usp=sharing)
 
 ## Integrantes
 Diana Lucía Fernández Villatoro - 21747
