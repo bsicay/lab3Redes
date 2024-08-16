@@ -17,8 +17,8 @@ class Node:
     def get_neighbors(self):
         return self.neighbors
 
-    def __repr__(self):
-        return f"Nodo: {self.name}{(' | Vecinos: '+str(self.neighbors)) if len(self.neighbors)>0 else ''}"
+    # def __repr__(self):
+    #     return f"Nodo: {self.name}{(' | Vecinos: '+str(self.neighbors)) if len(self.neighbors)>0 else ''}"
         
-    def __str__(self):
-        return f"Nodo: {self.name}{(' | Vecinos: '+str(self.neighbors)) if len(self.neighbors)>0 else ''}"
+    # def __str__(self):
+    #     return f"Nodo: {self.name}{(' | Vecinos: '+str(self.neighbors)) if len(self.neighbors)>0 else ''}"
