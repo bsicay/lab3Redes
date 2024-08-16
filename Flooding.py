@@ -83,6 +83,24 @@ class Flooding():
         }
 
         return json.dumps(message, indent=4)
+    
+    def create_echo_message(self, source_node, message_data, destiny, hc):
+        headers = {
+            "receivers": []
+        }
+
+        payload = message_data
+        print(source_node)
+        message = {
+            "type": "echo",
+            "from": source_node.name,
+            "to": destiny.name,
+            "hop_count": hc,
+            "headers": headers,
+            "payload": payload
+        }
+
+        return json.dumps(message, indent=4)
 
     def process_message(self, message, receiving_node):
         message_data = json.loads(message)
@@ -121,6 +139,7 @@ class Flooding():
                 s.sendall(message.encode('utf-8'))
 
     def handle_connection(self, conn, addr):
+        print('Handle from Flodding')
         with conn:
             message = conn.recv(1024).decode('utf-8')
             print(f"Mensaje recibido de {addr}: {message}")
@@ -140,7 +159,7 @@ class Flooding():
         start_time = time.time()
         self.echo_times[neighbor_name] = start_time 
         message_data = {"type": "echo", "timestamp": start_time}
-        message = self.create_message(self.actual_node, message_data, Node(neighbor_name), 1)
+        message = self.create_echo_message(self.actual_node, message_data, Node(neighbor_name), 1)
         self.send_message(neighbor_name, message)
 
     def handle_echo(self, message_data):
