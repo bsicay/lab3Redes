@@ -6,11 +6,14 @@ import time
 
 
 class Flooding():
-    def __init__(self):
+    def __init__(self, routing_table):
+        self.RT = routing_table
         self.nodes = []
         self.node_ports = {}
         self.actual_node = None
         self.echo_times = {} 
+        self.topology = {}  #  diccionario para almacenar la topología
+
 
     def add_node(self, node):
         self.nodes.append(node)
@@ -157,7 +160,8 @@ class Flooding():
 
     def send_echo(self, neighbor_name):
         start_time = time.time()
-        self.echo_times[neighbor_name] = start_time 
+        self.echo_times[neighbor_name] = start_time  # Guardar el tiempo de inicio
+
         message_data = {"type": "echo", "timestamp": start_time}
         message = self.create_echo_message(self.actual_node, message_data, Node(neighbor_name), 1)
         self.send_message(neighbor_name, message)
@@ -172,6 +176,54 @@ class Flooding():
             return delay
         else:
             print("Echo recibido sin tiempo de inicio registrado.")
+
+    def start_flooding_topology(self):
+        """
+        Inicia el proceso de flooding para recopilar la topología completa.
+        """
+        self._send_flooding_message()
+
+    def _send_flooding_message(self):
+        origen = self.actual_node.name
+        neighbors_with_weights = {
+            n.name: self.topology.get(n.name, self.RT.get_info(n.name)[0])
+            for n in self.actual_node.get_neighbors()
+        }
+        message = {
+            "type": "topology",
+            "headers": {
+                "origen": origen,
+                "intermediarios": [origen]
+            },
+            "payload": {
+                "neighbors": neighbors_with_weights
+            }
+        }
+
+        message = json.dumps(message)
+        self._send_message_neighbors(message)
+
+    def _send_message_neighbors(self, message):
+        for n in self.actual_node.get_neighbors():
+            self.send_message(n.name, message)
+
+    def handle_topology_message(self, message):
+        origin = message['headers']['origen']
+        topology_update = message['payload']['neighbors']
+
+        # Actualiza la topología global con la nueva información recibida
+        if origin not in self.topology:
+            self.topology[origin] = {}
+
+        for neighbor, weight in topology_update.items():
+            self.topology[origin][neighbor] = weight
+
+        # Continúa el flooding a otros vecinos
+        for neighbor in self.actual_node.get_neighbors():
+            if neighbor.name not in message['headers']['intermediarios']:
+                message['headers']['intermediarios'].append(self.actual_node.name)
+                self.send_message(neighbor.name, json.dumps(message))
+
 
     def start(self):
         # topology_file = input("Ingrese el nombre del archivo de topología (e.g., topo-1.txt): ")
