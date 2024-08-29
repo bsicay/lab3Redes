@@ -1,0 +1,15 @@
+{
+    "type":"names",
+    "config": 
+    {
+        "A": "sic21757@alumchat.lol", 
+        "B": "sic21757-test20@alumchat.lol", 
+        "C": "sic21757-test1@alumchat.lol",
+        "D": "sic21757-test3@alumchat.lol",
+        "E": "sic21757-test4@alumchat.lol",
+        "F": "sic21757-test5@alumchat.lol",
+        "G": "sic21757-test6@alumchat.lol",
+        "H": "sic21757-test7@alumchat.lol",
+        "I": "sic21757-test8@alumchat.lol"
+    }
+}
