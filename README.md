@@ -34,7 +34,28 @@ Conocer los algoritmos de enrutamiento utilizados en las implementaciones actual
 
 ## Organización
 
+|-- dijkstra
+
+|-- DistanceVector
+
+|-- Flooding
+
+|-- FloogingLSR
+
+|-- SLR
+
+|-- main
+
+|-- node
+
+|-- ports
+
+|-- RoutingTable
+
+|-- topologia
+
 ## Compilación
+Para correr el laboratorio se necesita crear una terminal por cada nodo de la topología, en donde se debe ejecutar `main.py`
 
 ## Informe
 [Informe hecho para la práctica](https://docs.google.com/document/d/1oajd_Rplzeuf2QwlmoDx9Z3dLMxj9uxG9pMMjFpUjVY/edit?usp=sharing)
