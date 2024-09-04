@@ -116,7 +116,7 @@ class Server(slixmpp.ClientXMPP):
                 "to": node_name,
                 "visited": visited_nodes
             },
-            "data": user_input
+            "payload": user_input
         }
         tabla_send = json.dumps(tabla)   
 
@@ -129,11 +129,12 @@ class Server(slixmpp.ClientXMPP):
 
             if (vecino not in visited_nodes):
                 recipient_jid = vecino                                               
-                self.send_message(mto=recipient_jid, mbody=tabla_send, mtype='chat')   
+                self.send_message(mto=recipient_jid, mbody=tabla_send, mtype='chat')     # Enviar mensaje con librería slixmpp
                 print(f"--> Mensaje enviado a {vecino}.")
                 print("----------------------")
                 await asyncio.sleep(1)
             
+    #-------------------------------------------------------------------------------------------------------------------
     def getAvailableNodes(self):
         with open('names.txt', 'r') as file:
             data = json.load(file)
@@ -141,7 +142,7 @@ class Server(slixmpp.ClientXMPP):
         data = data["config"]
         return data
 
-    
+    #-------------------------------------------------------------------------------------------------------------------
     def getNeighbors(self, node):
         with open('topo.txt', 'r') as file:
             data = json.load(file)
@@ -155,6 +156,7 @@ class Server(slixmpp.ClientXMPP):
 
         return list_neighbors
     
+    #-------------------------------------------------------------------------------------------------------------------
     async def convert_to_dict(self, paquete):
         try:
             input_str = paquete.replace("'", '"')
@@ -164,22 +166,27 @@ class Server(slixmpp.ClientXMPP):
             print(err)
             return None
     
-
+     #-------------------------------------------------------------------------------------------------------------------
+    
+    '''
+    message: Función que se ejecuta de forma asincrónica al recibir un mensaje.
+    '''
     async def message(self, msg):
 
         if self.old:
             return
         
         if msg['type'] == 'chat' and "message" in msg['body']:
-            person = msg['from'].bare                                       
+            person = msg['from'].bare                                               # Si se recibe un mensaje, se obtiene el nombre de usuario
             info = await self.convert_to_dict(msg['body'].replace("'", '"'))
 
-            mensaje = info["data"]
-            origen = info["from"]
-            destino = info["to"]
+            mensaje = info["payload"]
+            origen = info["headers"]["from"]
+            destino = info["headers"]["to"]
 
             current_msg = str(origen+","+destino+","+mensaje)
 
+            # Lleva registro de mensajes que han entrado
             if current_msg in self.traza_mensajes:
                 # Si ya había entrado, no retransmite
                 self.traza_mensajes.append(current_msg)
@@ -205,14 +212,12 @@ class Server(slixmpp.ClientXMPP):
                 visited_nodes.append(self.graph)
                 tabla = {
                     "type": "message",
-                    "to": destino,
-                    "from": origen,
                     "headers": {
                         "from": origen,
                         "to": destino,
                         "visited": visited_nodes
                     },
-                    "data": mensaje
+                    "payload": mensaje
                 }
                 tabla_send = json.dumps(tabla)
 
@@ -232,7 +237,7 @@ class Server(slixmpp.ClientXMPP):
 
                     else:
                         recipient_jid = vecino                                                   # Obtener el JID del destinatario
-                        self.send_message(mto=recipient_jid, mbody=tabla_send, mtype='chat')
+                        self.send_message(mto=recipient_jid, mbody=tabla_send, mtype='chat')     # Enviar mensaje con librería slixmpp
                         print(f"--> Retransmitiendo mensaje a {vecino}.")
                         print("-----------------------------------")
                         retransmitir = False
@@ -242,6 +247,7 @@ class Server(slixmpp.ClientXMPP):
                     print("--> No hay nodos a los que retransmitir el mensaje.")
                     print("------------------------------------------------------")
             
+    #-------------------------------------------------------------------------------------------------------------------
     async def mostrar_menu_comunicacion(self):
         print("\n----- MENÚ DE COMUNICACIÓN -----")
         print("1) Enviar mensaje")
@@ -257,6 +263,7 @@ class Server(slixmpp.ClientXMPP):
             except ValueError:
                 print("\n--> Entrada inválida. Por favor, ingrese un número entero.\n")
 
+    #-------------------------------------------------------------------------------------------------------------------
     async def mostrar_menu_comunicacion(self):
         print("\n----- MENÚ DE COMUNICACIÓN -----")
         print("1) Enviar mensaje")
@@ -272,6 +279,7 @@ class Server(slixmpp.ClientXMPP):
             except ValueError:
                 print("\n--> Entrada inválida. Por favor, ingrese un número entero.\n")
 
+#-------------------------------------------------------------------------------------------------------------------
 def select_node():
     with open('names.txt', 'r') as file:
         data = file.read().replace('\n', '').replace("'", '"')
