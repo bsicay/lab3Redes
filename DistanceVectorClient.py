@@ -255,7 +255,7 @@ class Server(slixmpp.ClientXMPP):
 
         # Si no conocemos la distancia al nodo fuente, no podemos actualizar rutas a través de él
         if distance_to_source == float('inf'):
-            print(f"No conocemos la distancia a {source}, no podemos actualizar rutas a través de él.")
+            # print(f"No conocemos la distancia a {source}, no podemos actualizar rutas a través de él.")
             return
 
         # Actualizar distancias a otros nodos a través del nodo fuente
@@ -314,7 +314,7 @@ class Server(slixmpp.ClientXMPP):
         
         # Verificar si el destino está en la tabla de enrutamiento
         if destination not in self.weights_table[self.graph]:
-            print(f"Destino {destination} no encontrado en la tabla de enrutamiento.")
+            # print(f"Destino {destination} no encontrado en la tabla de enrutamiento.")
             return
 
         # Obtener la entrada correspondiente al destino en la tabla de enrutamiento
@@ -361,7 +361,7 @@ class Server(slixmpp.ClientXMPP):
             if opcion_comunicacion == 1:
                 # Mostrar tabla de enrutamiento
                 print("\n----- TABLA DE ENRUTAMIENTO -----")
-                print(self.weights_table)
+                # print(self.weights_table)
                 await asyncio.sleep(1)
 
             elif opcion_comunicacion == 2:
@@ -464,9 +464,6 @@ class Server(slixmpp.ClientXMPP):
         if msg['type'] == 'chat':
             content = json.loads(msg['body'])
             if content['type'] == 'echo':
-                print("ECHO MESSGE /////")
-                print(msg)
-                print( msg['from'].bare)
                 await self.handle_echo(content, msg['from'].bare)
             elif content['type'] == 'echo_response':
                 await self.handle_echo_response(content, msg['from'].bare)
@@ -541,20 +538,13 @@ class Server(slixmpp.ClientXMPP):
         """
         Espera hasta que la tabla de enrutamiento tenga una ruta válida al destino.
         """
-        print(start_node)
-        print(destination_node)
         start_time = time.time()
         while True:
             current_time = time.time()
-            print(current_time)
-            print(timeout)
             if current_time - start_time >= timeout:
                 raise TimeoutError(f"Timeout: La tabla de enrutamiento no se ha poblado para el nodo {start_node} en {timeout}ms.")
             
             # Revisar si la tabla de enrutamiento tiene una ruta válida
-            print(self.weights_table.get(start_node))
-            print(destination_node)
-            print(self.weights_table[start_node])
             if self.weights_table.get(start_node) and destination_node in self.weights_table[start_node]:
                 return self.weights_table
             
