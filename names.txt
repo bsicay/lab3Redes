@@ -2,9 +2,10 @@
     "type":"names",
     "config": 
     {
-        "A": "sic21757@alumchat.lol", 
-        "B": "sic21757-test20@alumchat.lol", 
-        "C": "sic21757-test3@alumchat.lol",
-        "D": "sic21757-test2@alumchat.lol"
+        "A": "tox21276-test@alumchat.lol", 
+        "B": "fer21747@alumchat.lol", 
+        "C": "sic21757@alumchat.lol",
+        "D": "sic21757-test2@alumchat.lol",
+        "E": "mor21785@alumchat.lol"
     }
 }
