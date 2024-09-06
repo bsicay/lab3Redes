@@ -361,7 +361,7 @@ class Server(slixmpp.ClientXMPP):
             if opcion_comunicacion == 1:
                 # Mostrar tabla de enrutamiento
                 print("\n----- TABLA DE ENRUTAMIENTO -----")
-                # print(self.weights_table)
+                print(self.weights_table)
                 await asyncio.sleep(1)
 
             elif opcion_comunicacion == 2:
