@@ -83,6 +83,8 @@ class Server(slixmpp.ClientXMPP):
         if msg['type'] == 'chat':
             content = json.loads(msg['body'])
             if content['type'] == 'echo':
+                print("ECHO MESSGE /////")
+                print(msg)
                 await self.handle_echo(content, msg['from'].bare)
             elif content['type'] == 'echo_response':
                 await self.handle_echo_response(content, msg['from'].bare)
