@@ -9,6 +9,8 @@ import aioconsole
 import base64
 import time
 
+
+
 class Server(slixmpp.ClientXMPP):
 
     '''
@@ -35,9 +37,14 @@ class Server(slixmpp.ClientXMPP):
         self.logged_in = False
         self.topologia = None
 
-        self.traza_mensajes = []
-        self.compartido = []
+        self.echo_send = []
+        self.echoed = []
 
+        self.echo_times = {}  # Para guardar los tiempos de envío de echo
+        self.weights_table = {}  # Tabla de pesos
+        self.version = 1  # Versión inicial de la tabla de pesos
+
+        self.traza_mensajes = []
 
     #-------------------------------------------------------------------------------------------------------------------
     '''
@@ -53,17 +60,6 @@ class Server(slixmpp.ClientXMPP):
             self.old = False
             self.tabla = await self.tabla_enrutamiento()             # Generar tabla de enrutamiento
 
-            print("\n\n----- NOTIFICACION: COMPARTIENDO VECTOR DISTANCIA -----")
-
-            #-----> Enviar a vecinos vector inicial
-            for key in self.topologia[self.graph]:
-
-                if key != self.graph:
-                    await self.broadcast_table(key)       # Enviar mensaje con librería slixmpp
-            
-            print("--------------------------------")
-
-            #-----> Generado por ChatGPT
             xmpp_menu_task = asyncio.create_task(self.xmpp_menu())          # Creación de hilo para manejar el menú de comunicación
             #---------------------------
             
@@ -72,7 +68,210 @@ class Server(slixmpp.ClientXMPP):
         except Exception as e:
             print(f"Error: {e}")
 
-    
+
+    async def send_echo(self, neighbor):
+            """Envía un mensaje tipo echo a un vecino."""
+            message = {"type": "echo", "from": self.graph}
+            self.echo_times[neighbor] = time.time()  # Registrar el tiempo de envío
+            recipient_jid = self.keys[neighbor]
+            self.send_message(mto=recipient_jid, mbody=json.dumps(message), mtype='chat')
+            print(f"Echo enviado a {neighbor}.")
+            # return None
+
+    async def handle_echo(self, content, sender_jid):
+            """Manejo de recepción de echo, responder con echo_response."""
+            response = {"type": "echo_response", "from": self.graph}
+            self.send_message(mto=sender_jid, mbody=json.dumps(response), mtype='chat')
+            print(sender_jid)
+            print(content)
+            print(f"Echo recibido de {sender_jid}. Echo_response enviado a {sender_jid}.")
+            return None
+
+    async def handle_echo_response(self, content, sender_jid):
+        """Manejo de recepción de echo_response, calcular tiempo y actualizar tabla de pesos."""
+        sender_node = [k for k, v in self.keys.items() if v == sender_jid][0]
+        end_time = time.time()
+        round_trip_time = end_time - self.echo_times[sender_node]
+        print(f"Echo_response recibido de {sender_node}. Tiempo de ida y vuelta: {round_trip_time:.4f} segundos.")
+
+
+    # Asegurar que nuestro vector de distancias está inicializado
+        my_node = self.graph
+        if my_node not in self.weights_table:
+            self.weights_table[my_node] = {node: float('inf') for node in self.keys}
+            self.weights_table[my_node][my_node] = 0  # Distancia a sí mismo es 0
+
+    # Actualizar la distancia al vecino directo
+        self.weights_table[my_node][sender_node] = round_trip_time
+        await self.broadcast_weights()
+
+    async def broadcast_weights(self):
+        """Envía la tabla de pesos actualizada a todos los vecinos."""
+        print("TABLA")
+        print(self.graph)
+        my_node = self.graph
+        message = {
+            "type": "weights",
+            "table": self.weights_table[my_node],
+            "version": 0,
+            "from": self.graph
+        }
+        for neighbor in self.topologia[self.graph]:
+            recipient_jid = self.keys[neighbor]
+            self.send_message(mto=recipient_jid, mbody=json.dumps(message), mtype='chat')
+        print(f"Tabla de pesos enviada a los vecinos: {self.weights_table}")
+
+
+    # async def handle_weights(self, content):
+    #     """Manejo de recepción de una tabla de pesos utilizando lógica de Vector de Distancias."""
+    #     source = content["from"]
+    #     received_table = content["table"]  # Tabla de pesos recibida
+
+    #     # Obtener la tabla de pesos actual y el vector de distancias para el nodo actual
+    #     my_node = self.graph
+    #     current_table = self.weights_table
+
+    #     # Inicializar la tabla si está vacía (distancia infinita a todos los nodos excepto a sí mismo)
+    #     if my_node not in current_table:
+    #         current_table[my_node] = {node: float('inf') for node in self.keys}
+    #         current_table[my_node][my_node] = 0  # Distancia al propio nodo es 0
+
+    #     my_vector = current_table[my_node]  # Vector de distancias del nodo actual
+    #     table_changed = False  # Indicador de si la tabla cambió
+
+    #     # Calcular la distancia al nodo fuente
+    #     distance_to_source = my_vector.get(source, float('inf'))
+
+    #     # Revisar y actualizar distancias para cada nodo en la tabla recibida
+    #     for node, source_to_node in received_table.items():
+    #         if node not in self.keys:
+    #             continue  # Saltar nodos desconocidos
+
+    #         # Extraer la distancia correcta (si es lista, obtener el valor de distancia)
+    #         if isinstance(source_to_node, list):
+    #             source_to_node = source_to_node[0]
+
+    #         # Verificar que source_to_node sea un valor numérico
+    #         if isinstance(source_to_node, (int, float)):
+    #             current_distance = my_vector.get(node, float('inf'))
+
+    #             # Actualizar la distancia si se encuentra una mejor ruta
+    #             if distance_to_source + source_to_node < current_distance:
+    #                 # Actualizar la tabla de distancias
+    #                 if node != source:
+    #                     my_vector[node] = [distance_to_source + source_to_node, source]  # Ruta indirecta
+    #                 else:
+    #                     my_vector[node] = distance_to_source + source_to_node  # Ruta directa
+    #                 table_changed = True
+
+    #     # Si la tabla ha cambiado, propagar los cambios a los vecinos
+    #     if table_changed:
+    #         await self.broadcast_weights()
+
+    #     print(f"Tabla de pesos actualizada para {my_node}: {self.weights_table[my_node]}")
+
+    async def handle_weights(self, content):
+        """Manejo de recepción de una tabla de pesos utilizando lógica de Vector de Distancias."""
+        source = content["from"]
+        received_vector = content["table"]  # Vector de distancias recibido del vecino
+        my_node = self.graph
+
+        # Guardar el vector de distancias del nodo fuente
+        self.weights_table[source] = received_vector
+
+        # Asegurar que nuestro vector de distancias está inicializado
+        if my_node not in self.weights_table:
+            self.weights_table[my_node] = {node: float('inf') for node in self.keys}
+            self.weights_table[my_node][my_node] = 0  # Distancia a sí mismo es 0
+
+        my_vector = self.weights_table[my_node]
+        table_changed = False
+
+        # Obtener la distancia actual al nodo fuente
+        distance_to_source = my_vector.get(source, float('inf'))
+
+        # Si no conocemos la distancia al nodo fuente, no podemos actualizar rutas a través de él
+        if distance_to_source == float('inf'):
+            print(f"No conocemos la distancia a {source}, no podemos actualizar rutas a través de él.")
+            return
+
+        # Actualizar distancias a otros nodos a través del nodo fuente
+        for dest_node in self.keys:
+            if dest_node == my_node:
+                continue  # Saltar a sí mismo
+
+            # Distancia del nodo fuente al destino
+            source_to_dest = received_vector.get(dest_node, float('inf'))
+
+            # Calcular distancia total a dest_node pasando por source
+            new_distance = distance_to_source + source_to_dest
+
+            # Si encontramos una distancia mejorada, actualizamos
+            if new_distance < my_vector.get(dest_node, float('inf')):
+                if dest_node != source:
+                    my_vector[dest_node] = [new_distance, source] 
+                else:
+                    my_vector[dest_node] = new_distance
+                table_changed = True
+
+        if table_changed:
+            await self.broadcast_weights()
+
+        print(f"Tabla de pesos actualizada para {my_node}: {my_vector}")
+
+
+
+    async def handle_send_routing(self, content, sender_jid):
+        """Manejo de recepción de un mensaje `send_routing`."""
+        destination = content["to"]
+        if destination == self.graph:
+            # Convertir el mensaje en formato `message` y manejarlo directamente
+            direct_message = {
+                "type": "message",
+                "from": content["from"],
+                "data": content["data"]
+            }
+            await self.handle_direct_message(direct_message)
+        else:
+            # Continuar enviando el mensaje hasta el destino final
+            await self.send_routing_message(destination, content["data"])
+
+
+    async def send_routing_message(self, destination, message_data):
+        """Envía un mensaje `send_routing` a un nodo destino, con soporte para rutas indirectas."""
+        
+        # Verificar si el destino está en la tabla de enrutamiento
+        if destination not in self.weights_table[self.graph]:
+            print(f"Destino {destination} no encontrado en la tabla de enrutamiento.")
+            return
+
+        # Obtener la entrada correspondiente al destino en la tabla de enrutamiento
+        route_info = self.weights_table[self.graph].get(destination)
+        
+        # Verificar si es una ruta directa o si hay un nodo intermediario
+        if isinstance(route_info, (int, float)):
+            # Ruta directa
+            next_hop = destination
+        else:
+            # Ruta indirecta, obtener el nodo intermediario
+            next_hop = route_info[1]
+
+        # Preparar el mensaje para reenviar
+        message = {
+            "type": "send_routing",
+            "to": destination,
+            "from": self.graph,
+            "data": message_data,
+            "hops": len(self.keys)  # O puedes ajustar el valor si deseas controlar los saltos máximos
+        }
+
+        # Obtener el JID del siguiente salto (vecino o intermediario)
+        recipient_jid = self.keys[next_hop]
+        
+        # Enviar el mensaje al siguiente salto
+        self.send_message(mto=recipient_jid, mbody=json.dumps(message), mtype='chat')
+        print(f"Mensaje `send_routing` enviado a {next_hop}, con destino a {destination}.")
+
     #-------------------------------------------------------------------------------------------------------------------
     '''
     xmpp_menu: Función que muestra el menú de comunicación y ejecuta las funciones correspondientes a cada opción.
@@ -80,20 +279,17 @@ class Server(slixmpp.ClientXMPP):
 
     async def xmpp_menu(self):
         self.logged_in = True
-        await asyncio.sleep(5)
+        await asyncio.sleep(3)
 
         opcion_comunicacion = 0
-        while opcion_comunicacion != 3:
+        while opcion_comunicacion != 4:
 
             opcion_comunicacion = await self.mostrar_menu_comunicacion()
 
             if opcion_comunicacion == 1:
                 # Mostrar tabla de enrutamiento
-                print("\n----- VECTOR DISTANCIA -----")
-                print(self.tabla)
-
-                print("\n----- ENLACES -----")
-                print(self.enlaces)
+                print("\n----- TABLA DE ENRUTAMIENTO -----")
+                print(self.weights_table)
                 await asyncio.sleep(1)
 
             elif opcion_comunicacion == 2:
@@ -102,6 +298,12 @@ class Server(slixmpp.ClientXMPP):
                 await asyncio.sleep(1)
 
             elif opcion_comunicacion == 3:
+                print("\n\n----- NOTIFICACION: ECHO -----")
+                for neighbor in self.topologia[self.graph]:
+                    await self.send_echo(neighbor)
+                await asyncio.sleep(1)
+                print("\nEcho enviados, regresando al menú.")
+            elif opcion_comunicacion == 4:
                 # Cerrar sesión con una cuenta
                 print("\n--> Sesión cerrada. Hasta luego.")
                 self.disconnect()
@@ -140,23 +342,45 @@ class Server(slixmpp.ClientXMPP):
             except ValueError:
                 print("Ingrese un número válido")
 
-        user_input = await aioconsole.ainput("Mensaje: ")                            # Obtener el mensaje a enviar
+        user_input = await aioconsole.ainput("Mensaje: ")  # Obtener el mensaje a enviar
 
-        tabla = {"type":"message",
-                "headers": {"from": f"{self.graph}", "to": f"{node_name}", "hop_count": 1},
-                "payload": user_input}
-        
-        tabla_send = json.dumps(tabla)  # Se envía el paquete de información
-        
-        keys_temp = list(self.keys.keys())
-        camino = self.enlaces[keys_temp.index(node_name)]
-        print(f"\n--> Camino más corto a través de: {camino}")
+        # Esperar a que la tabla de enrutamiento se actualice
+        try:
+            print("Esperando a que la tabla de enrutamiento se actualice...")
+            table = await self.wait_for_table_update(self.graph, node_name)
+            my_vector = table[self.graph]
+            destination_node = node_name
 
-        recipient_jid = self.keys[camino]                                        # Obtener el JID del destinatario
+            # Determinar el siguiente salto en la ruta
+            if isinstance(my_vector[destination_node], (int, float)):  # Si es un número, el destino es directo
+                next_hop = destination_node
+            else:  # Si es una lista, obtener el siguiente salto
+                next_hop = my_vector[destination_node][1]  # Nodo intermediario
 
-        self.send_message(mto=recipient_jid, mbody=tabla_send, mtype='chat')         # Enviar mensaje con librería slixmpp
-        print(f"--> Mensaje enviado a {camino}, con destino a {node_name}.")
-        print("----------------------")
+            # Enviar el mensaje al siguiente salto
+            message = {
+                "type": "send_routing",
+                "to": destination_node,
+                "from": self.graph,
+                "data": user_input,
+                "hops": len(self.keys)
+            }
+
+            recipient_jid = self.keys[next_hop]
+            self.send_message(mto=recipient_jid, mbody=json.dumps(message), mtype='chat')
+            print(f"Mensaje enviado a {next_hop}, con destino a {destination_node}.")
+
+        except TimeoutError as e:
+            print(f"Error: {e}")
+
+
+    async def handle_direct_message(self, content):
+        """Manejo de un mensaje `message` directo al nodo destino."""
+        if 'from' in content and 'data' in content:
+            print(f"Mensaje recibido desde {content['from']}: {content['data']}")
+        else:
+            print("Mensaje recibido con formato incorrecto:", content)
+
 
     #-------------------------------------------------------------------------------------------------------------------
     '''
@@ -164,97 +388,30 @@ class Server(slixmpp.ClientXMPP):
     '''
 
     async def message(self, msg):
-        print("\n\n---------- MENSAJES / NOTIFICACIONES ----------")
-
-        if self.old:
-            return
-        
-        if msg['type'] == 'chat' and "info" in msg['body']:
-
-            # BELLMAN FORD - DISTANCE VECTOR
-            info = await self.convert_to_dict(msg['body'])
-
-            mensaje = info["payload"].replace("'", '"')
-            received_table = json.loads(mensaje)
-            origin = info["headers"]["from"]
-
-            print(f"\n--> Vector de distancia recibido de {origin}.")
-
-            keys_temp = list(self.keys.keys())
-
-            # Costo del nodo actual al nodo origen
-            cost_to_origin = self.tabla[keys_temp.index(origin)]
-            updates_occurred = False
-
-            # Revisa con Bellman-Ford si el costo total es menor al costo actual
-            for i, new_cost in enumerate(received_table):
-                total_cost = cost_to_origin + new_cost
-
-                if total_cost < self.tabla[i]:
-                    self.tabla[i] = total_cost
-                    self.enlaces[i] = origin
-                    updates_occurred = True
-
-            # Comparte las tablas de enrutamiento que tiene que compartir
-            if updates_occurred:
-                print("--> Se han realizado cambios en la tabla de enrutamiento.")
-
-                vecinos = self.topologia[self.graph]
-
-                for key in vecinos:
-                    if key != self.graph:
-                        await self.broadcast_table(key)
-                        await asyncio.sleep(1)
-
-            elif not updates_occurred and info["headers"]["hop_count"] == 2:
-                print("--> No se han realizado cambios en la tabla de enrutamiento.")
-
-            else:
-                print("--> No se han realizado cambios en la tabla de enrutamiento. Enviando tabla de regreso.")
-                await self.broadcast_table(origin, hop_count=2)
-
-        elif msg['type'] == 'chat' and "message" in msg['body']:
-            person = msg['from'].bare                                               # Si se recibe un mensaje, se obtiene el nombre de usuario
-            info = await self.convert_to_dict(msg['body'])
-            mensaje = info["payload"].replace("'", '"')
-            origen = info["headers"]["from"]
-            destino = info["headers"]["to"]
-
-            if destino == self.graph:
-                email_origen = self.keys[origen]
-
-                print("\n\n----------- MENSAJE -----------")
-                print(f"--> {email_origen} ha enviado un mensaje: {mensaje}")
-                print("--------------------------------")
-                return
-            
-            else:
-                keys_temp = list(self.keys.keys())
-
-                camino = self.enlaces[keys_temp.index(destino)]
-                print(f"\n--> Camino más corto a través de: {camino}")
-
-                recipient_jid = self.keys[camino]                                        # Obtener el JID del destinatario
-                tabla = {"type":"message",
-                        "headers": {"from": f"{origen}", "to": f"{destino}", "hop_count": 1},
-                        "payload": mensaje}
-                
-                tabla_send = json.dumps(tabla)
-
-                self.send_message(mto=recipient_jid, mbody=tabla_send, mtype='chat')         # Enviar mensaje con librería slixmpp
-
-                print("\n\n----------- MENSAJE -----------")
-                print(f"--> {person} ha enviado un mensaje para retransmitir a {camino}, con destino a {destino}.")
-                print("--------------------------------")
-
-        self.traza_mensajes.append(msg)
+        """Manejo de todos los mensajes entrantes."""
+        if msg['type'] == 'chat':
+            content = json.loads(msg['body'])
+            if content['type'] == 'echo':
+                print("ECHO MESSGE /////")
+                print(msg)
+                print( msg['from'].bare)
+                await self.handle_echo(content, msg['from'].bare)
+            elif content['type'] == 'echo_response':
+                await self.handle_echo_response(content, msg['from'].bare)
+            elif content['type'] == 'weights':
+                await self.handle_weights(content)
+            elif content['type'] == 'send_routing':
+                await self.handle_send_routing(content, msg['from'].bare)
+            elif content['type'] == 'message':
+                await self.handle_direct_message(content)
 
     #-------------------------------------------------------------------------------------------------------------------
     async def mostrar_menu_comunicacion(self):
         print("\n----- MENÚ DE COMUNICACIÓN -----")
-        print("1) Revisar vector distancia")
+        print("1) Revisar tabla enrutamiento")
         print("2) Enviar mensaje")
-        print("3) Salir")
+        print("3) Send Echo")
+        print("5) Salir")
 
         while True:
             try:
@@ -286,73 +443,51 @@ class Server(slixmpp.ClientXMPP):
         data = json.loads(data)
         self.keys = data["config"]
 
-        self.graph = None
+        # Buscar llave de correo actual y asignar a self.graph
         for key, value in self.keys.items():
             if value == self.email:
                 self.graph = key
 
-        array_topologia = [9999 for _ in range(len(self.keys))]
-        self.enlaces = ["" for _ in range(len(self.keys))]
+        # Se genera la tabla de enrutamiento
+        num_nodos = len(self.keys)
+        array_topologia = [[9999 for _ in range(num_nodos)] for _ in range(num_nodos)]
 
         keys_temp = list(self.keys.keys())
 
+        # Llenar tabla de enrutamiento inicial
         for key in self.topologia[self.graph]:
-                array_topologia[keys_temp.index(key)] = 1
-                self.enlaces[keys_temp.index(key)] = key
+            array_topologia[keys_temp.index(self.graph)][keys_temp.index(key)] = 1
 
-        if array_topologia[keys_temp.index(self.graph)] == 9999:
-            array_topologia[keys_temp.index(self.graph)] = 0
+        array_topologia[keys_temp.index(self.graph)][keys_temp.index(self.graph)] = 0
 
-
-        print(f"\nVECTOR DE DISTANCIA INICIAL:\n {array_topologia}")
+        print(f"\nTABLA DE ENRUTAMIENTO INICIAL:\n {array_topologia}")
 
         return array_topologia
 
-    '''
-        Le envia a sus vecinos su vector de distancia por broadcast
-    '''
-    async def broadcast_table(self, element=None, hop_count=1):
 
-        # Imprime las tablas de enrutamiento que tiene que compartir   
-
-        # Nodo seleccionado
-        nodo_email = self.keys[element]
-
-        # Se crea el primer paquete de información
-        string_array = str(self.tabla)
-        tabla = {"type":"info", 
-            "headers": {"from": f"{self.graph}", "to": f"{element}", "hop_count": hop_count},
-            "payload": string_array}
-        
-        tabla_send = json.dumps(tabla)  # Se envía el paquete de información
-    
-        print(f"--> Enviando tabla a {element}...")
-
-        self.send_message(mto=nodo_email, mbody=tabla_send, mtype='chat')         # Enviar mensaje con librería slixmpp
-
-# ------------ MENUS y HERRAMIENTAS ------------
-    async def convert_to_dict(self, paquete):
-        try:
-            input_str = paquete.replace("'", '"')
-            data = json.loads(input_str)
-            return data
-        except json.JSONDecodeError as err:
-            print(err)
-            return None
-
-    async def are_nested_arrays_equal(self, arr1, arr2):
-        if len(arr1) != len(arr2):
-            return False
-        
-        for i in range(len(arr1)):
-            if isinstance(arr1[i], list) and isinstance(arr2[i], list):
-                if not await self.are_nested_arrays_equal(arr1[i], arr2[i]):
-                    return False
-            else:
-                if arr1[i] != arr2[i]:
-                    return False
-        
-        return True
+    async def wait_for_table_update(self, start_node, destination_node, timeout=100):
+        """
+        Espera hasta que la tabla de enrutamiento tenga una ruta válida al destino.
+        """
+        print(start_node)
+        print(destination_node)
+        start_time = time.time()
+        while True:
+            current_time = time.time()
+            print(current_time)
+            print(timeout)
+            if current_time - start_time >= timeout:
+                raise TimeoutError(f"Timeout: La tabla de enrutamiento no se ha poblado para el nodo {start_node} en {timeout}ms.")
+            
+            # Revisar si la tabla de enrutamiento tiene una ruta válida
+            print(self.weights_table.get(start_node))
+            print(destination_node)
+            print(self.weights_table[start_node])
+            if self.weights_table.get(start_node) and destination_node in self.weights_table[start_node]:
+                return self.weights_table
+            
+            # Esperar un intervalo antes de revisar de nuevo
+            await asyncio.sleep(0.1)
 
 
 def select_node():
@@ -362,7 +497,7 @@ def select_node():
     data = data["config"]
 
     while True:
-        print("\n---DISTANCE VECTOR---\nSeleccione un nodo de la lista: ")
+        print("Seleccione un nodo de la lista: ")
         keys = list(value for key, value in data.items())
         for i, key in enumerate(keys):
             print(f"{i+1}. {key}")
@@ -379,9 +514,9 @@ def select_node():
 
 
 # Para evitar el error de que el evento no se puede ejecutar en Windows
-#asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())  
+#asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy()) 
 
 usuario = select_node()
-server = Server(usuario, "kinalkinal")           
-server.connect(disable_starttls=True)     
-server.process(forever=False)           
+server = Server(usuario, "kinalkinal")         
+server.connect(disable_starttls=True)   
+server.process(forever=False)             
