@@ -8,10 +8,14 @@ import asyncio
 import aioconsole 
 import base64
 import time
+import sys
+import os
 
 
 
 class Server(slixmpp.ClientXMPP):
+
+    sys.stderr = open(os.devnull, 'w')
 
     '''
     init: Constructor de la clase Server. Inicializa los handlers de eventos y el estado de logged_in.
@@ -117,8 +121,8 @@ class Server(slixmpp.ClientXMPP):
 
     async def broadcast_weights(self):
         """Envía la tabla de pesos actualizada a todos los vecinos."""
-        print("TABLA")
-        print(self.graph)
+        # print("TABLA")
+        # print(self.graph)
         my_node = self.graph
         message = {
             "type": "weights",
