@@ -60,6 +60,7 @@ class Server(slixmpp.ClientXMPP):
             self.old = False
             self.tabla = await self.tabla_enrutamiento()             # Generar tabla de enrutamiento
 
+
             xmpp_menu_task = asyncio.create_task(self.xmpp_menu())          # Creación de hilo para manejar el menú de comunicación
             #---------------------------
             
@@ -67,6 +68,13 @@ class Server(slixmpp.ClientXMPP):
 
         except Exception as e:
             print(f"Error: {e}")
+
+
+    async def periodic_broadcast_weights(self):
+        """Envia la tabla de pesos cada 3 segundos de forma periódica."""
+        while True:
+            await self.broadcast_weights()
+            await asyncio.sleep(3)  # Esperar 3 segundos antes del siguiente broadcast
 
 
     async def send_echo(self, neighbor):
@@ -84,7 +92,7 @@ class Server(slixmpp.ClientXMPP):
             self.send_message(mto=sender_jid, mbody=json.dumps(response), mtype='chat')
             print(sender_jid)
             print(content)
-            print(f"Echo recibido de {sender_jid}. Echo_response enviado a {sender_jid}.")
+            # print(f"Echo recibido de {sender_jid}. Echo_response enviado a {sender_jid}.")
             return None
 
     async def handle_echo_response(self, content, sender_jid):
@@ -103,7 +111,9 @@ class Server(slixmpp.ClientXMPP):
 
     # Actualizar la distancia al vecino directo
         self.weights_table[my_node][sender_node] = round_trip_time
-        await self.broadcast_weights()
+        # Iniciar la tarea de broadcast periódica
+        asyncio.create_task(self.periodic_broadcast_weights())
+        # await self.broadcast_weights()
 
     async def broadcast_weights(self):
         """Envía la tabla de pesos actualizada a todos los vecinos."""
@@ -119,7 +129,7 @@ class Server(slixmpp.ClientXMPP):
         for neighbor in self.topologia[self.graph]:
             recipient_jid = self.keys[neighbor]
             self.send_message(mto=recipient_jid, mbody=json.dumps(message), mtype='chat')
-        print(f"Tabla de pesos enviada a los vecinos: {self.weights_table}")
+        # print(f"Tabla de pesos enviada a los vecinos: {self.weights_table}")
 
 
     # async def handle_weights(self, content):
@@ -170,6 +180,55 @@ class Server(slixmpp.ClientXMPP):
 
     #     print(f"Tabla de pesos actualizada para {my_node}: {self.weights_table[my_node]}")
 
+    # async def handle_weights(self, content):
+    #     """Manejo de recepción de una tabla de pesos utilizando lógica de Vector de Distancias."""
+    #     source = content["from"]
+    #     received_vector = content["table"]  # Vector de distancias recibido del vecino
+    #     my_node = self.graph
+
+    #     # Guardar el vector de distancias del nodo fuente
+    #     self.weights_table[source] = received_vector
+
+    #     # Asegurar que nuestro vector de distancias está inicializado
+    #     if my_node not in self.weights_table:
+    #         self.weights_table[my_node] = {node: float('inf') for node in self.keys}
+    #         self.weights_table[my_node][my_node] = 0  # Distancia a sí mismo es 0
+
+    #     my_vector = self.weights_table[my_node]
+    #     table_changed = False
+
+    #     # Obtener la distancia actual al nodo fuente
+    #     distance_to_source = my_vector.get(source, float('inf'))
+
+    #     # Si no conocemos la distancia al nodo fuente, no podemos actualizar rutas a través de él
+    #     if distance_to_source == float('inf'):
+    #         print(f"No conocemos la distancia a {source}, no podemos actualizar rutas a través de él.")
+    #         return
+
+    #     # Actualizar distancias a otros nodos a través del nodo fuente
+    #     for dest_node in self.keys:
+    #         if dest_node == my_node:
+    #             continue  # Saltar a sí mismo
+
+    #         # Distancia del nodo fuente al destino
+    #         source_to_dest = received_vector.get(dest_node, float('inf'))
+
+    #         # Calcular distancia total a dest_node pasando por source
+    #         new_distance = distance_to_source + source_to_dest
+
+    #         # Si encontramos una distancia mejorada, actualizamos
+    #         if new_distance < my_vector.get(dest_node, float('inf')):
+    #             if dest_node != source:
+    #                 my_vector[dest_node] = [new_distance, source] 
+    #             else:
+    #                 my_vector[dest_node] = new_distance
+    #             table_changed = True
+
+    #     if table_changed:
+    #         await self.broadcast_weights()
+
+        # print(f"Tabla de pesos actualizada para {my_node}: {my_vector}")
+
     async def handle_weights(self, content):
         """Manejo de recepción de una tabla de pesos utilizando lógica de Vector de Distancias."""
         source = content["from"]
@@ -206,18 +265,27 @@ class Server(slixmpp.ClientXMPP):
             # Calcular distancia total a dest_node pasando por source
             new_distance = distance_to_source + source_to_dest
 
+            # Obtener la distancia actual en mi tabla de enrutamiento
+            current_entry = my_vector.get(dest_node, float('inf'))
+
+            # Si la entrada actual es una lista (ruta indirecta), extraer solo la distancia
+            if isinstance(current_entry, list):
+                current_distance = current_entry[0]
+            else:
+                current_distance = current_entry
+
             # Si encontramos una distancia mejorada, actualizamos
-            if new_distance < my_vector.get(dest_node, float('inf')):
+            if new_distance < current_distance:
                 if dest_node != source:
-                    my_vector[dest_node] = [new_distance, source] 
+                    my_vector[dest_node] = [new_distance, source]  # Ruta indirecta
                 else:
-                    my_vector[dest_node] = new_distance
+                    my_vector[dest_node] = new_distance  # Ruta directa
                 table_changed = True
 
         if table_changed:
             await self.broadcast_weights()
 
-        print(f"Tabla de pesos actualizada para {my_node}: {my_vector}")
+    # print(f"Tabla de pesos actualizada para {my_node}: {my_vector}")
 
 
 
@@ -262,7 +330,7 @@ class Server(slixmpp.ClientXMPP):
             "to": destination,
             "from": self.graph,
             "data": message_data,
-            "hops": len(self.keys)  # O puedes ajustar el valor si deseas controlar los saltos máximos
+            "hops": len(self.keys) 
         }
 
         # Obtener el JID del siguiente salto (vecino o intermediario)
@@ -411,7 +479,7 @@ class Server(slixmpp.ClientXMPP):
         print("1) Revisar tabla enrutamiento")
         print("2) Enviar mensaje")
         print("3) Send Echo")
-        print("5) Salir")
+        print("4) Salir")
 
         while True:
             try:
